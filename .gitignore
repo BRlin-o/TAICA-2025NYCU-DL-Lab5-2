@@ -1,0 +1,20 @@
+# python generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# venv
+.venv
+
+
+# Project files
+Lab5_*/.venv
+Lab5_*/runs
+Lab5_*/wandb
+
+# Mac default
+.DS_Store
+*/.DS_Store

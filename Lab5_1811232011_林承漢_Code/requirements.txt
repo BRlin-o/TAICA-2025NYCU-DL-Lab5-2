@@ -1,0 +1,7 @@
+gymnasium=1.1.1
+ale-py=0.10.0
+torch
+wandb
+numpy
+opencv-python
+imageio
