@@ -1,7 +1,9 @@
-gymnasium=1.1.1
-ale-py=0.10.0
+gymnasium==1.1.1
+gymnasium[classic-control]
+ale-py==0.10.0
 torch
 wandb
 numpy
 opencv-python
 imageio
+imageio[ffmpeg]

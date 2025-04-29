@@ -33,26 +33,19 @@ class DQN(nn.Module):
         - Feel free to change the architecture (e.g. number of hidden layers and the width of each hidden layer) as you like
         - Feel free to add any member variables/functions whenever needed
     """
-    def __init__(self, num_actions, input_shape):
+    def __init__(self, num_actions):
         super(DQN, self).__init__()
+        # An example: 
+        #self.network = nn.Sequential(
+        #    nn.Linear(input_dim, 64),
+        #    nn.ReLU(),
+        #    nn.Linear(64, 64),
+        #    nn.ReLU(),
+        #    nn.Linear(64, num_actions)
+        #)       
         ########## YOUR CODE HERE (5~10 lines) ##########
-        ## Lab1
-        if len(input_shape) == 1:            # CartPole → 向量
-            self.network = nn.Sequential(
-                nn.Linear(input_shape[0], 128), nn.ReLU(),
-                nn.Linear(128, 128), nn.ReLU(),
-                nn.Linear(128, num_actions)
-            )
-        ## Lab2, 3
-        else:                                # Pong → 影像 (4,84,84)
-            self.network = nn.Sequential(
-                nn.Conv2d(input_shape[0], 32, 8, 4), nn.ReLU(),
-                nn.Conv2d(32, 64, 4, 2),     nn.ReLU(),
-                nn.Conv2d(64, 64, 3, 1),     nn.ReLU(),
-                nn.Flatten(),
-                nn.Linear(64*7*7, 512),      nn.ReLU(),
-                nn.Linear(512, num_actions)
-            )
+
+        
         ########## END OF YOUR CODE ##########
 
     def forward(self, x):
@@ -120,12 +113,7 @@ class DQNAgent:
         self.num_actions = self.env.action_space.n
         self.preprocessor = AtariPreprocessor()
 
-        if torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-        elif torch.cuda.is_available():
-            self.device = torch.device("cuda")
-        else:
-            self.device = torch.device("cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("Using device:", self.device)
 
 
@@ -134,8 +122,6 @@ class DQNAgent:
         self.target_net = DQN(self.num_actions).to(self.device)
         self.target_net.load_state_dict(self.q_net.state_dict())
         self.optimizer = optim.Adam(self.q_net.parameters(), lr=args.lr)
-
-        self.memory = deque(maxlen=args.memory_size)
 
         self.batch_size = args.batch_size
         self.gamma = args.discount_factor
@@ -256,13 +242,13 @@ class DQNAgent:
         # Decay function for epsilin-greedy exploration
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+        self.train_count += 1
        
         ########## YOUR CODE HERE (<5 lines) ##########
         # Sample a mini-batch of (s,a,r,s',done) from the replay buffer
-        batch = random.sample(self.memory, self.batch_size)
-        states, actions, rewards, next_states, dones = map(
-            np.array, zip(*batch)
-        )
+
+      
+            
         ########## END OF YOUR CODE ##########
 
         # Convert the states, actions, rewards, next_states, and dones into torch tensors
@@ -273,25 +259,10 @@ class DQNAgent:
         #rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
         #dones = torch.tensor(dones, dtype=torch.float32).to(self.device)
         #q_values = self.q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        states      = torch.as_tensor(states,      dtype=torch.float32, device=self.device)
-        next_states = torch.as_tensor(next_states, dtype=torch.float32, device=self.device)
-        actions     = torch.as_tensor(actions,     dtype=torch.int64,   device=self.device).unsqueeze(1)
-        rewards     = torch.as_tensor(rewards,     dtype=torch.float32, device=self.device)
-        dones       = torch.as_tensor(dones,       dtype=torch.float32, device=self.device)
-        q_pred = self.q_net(states).gather(1, actions).squeeze(1)
-        q_values = self.q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
         
         ########## YOUR CODE HERE (~10 lines) ##########
         # Implement the loss function of DQN and the gradient updates 
-        with torch.no_grad():
-            q_next = self.target_net(next_states).max(1)[0]
-            q_target = rewards + self.gamma * q_next * (1 - dones)
-
-        loss = nn.functional.mse_loss(q_values, q_target)
-        
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+      
         
       
         ########## END OF YOUR CODE ##########  
@@ -300,10 +271,8 @@ class DQNAgent:
             self.target_net.load_state_dict(self.q_net.state_dict())
 
         # NOTE: Enable this part if "loss" is defined
-        if self.train_count % 1000 == 0:
-           print(f"[Train #{self.train_count}] Loss: {loss.item():.4f} Q mean: {q_values.mean().item():.3f} std: {q_values.std().item():.3f}")
-
-        self.train_count += 1
+        #if self.train_count % 1000 == 0:
+        #    print(f"[Train #{self.train_count}] Loss: {loss.item():.4f} Q mean: {q_values.mean().item():.3f} std: {q_values.std().item():.3f}")
 
 
 if __name__ == "__main__":

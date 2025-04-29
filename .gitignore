@@ -14,6 +14,8 @@ wheels/
 Lab5_*/.venv
 Lab5_*/runs
 Lab5_*/wandb
+Lab5_*/results
+Lab5_*/eval_results
 
 # Mac default
 .DS_Store
