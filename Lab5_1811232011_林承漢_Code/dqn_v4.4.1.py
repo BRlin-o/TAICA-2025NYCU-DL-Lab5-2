@@ -185,47 +185,25 @@ class PrioritizedReplayBuffer:
             prios = self.priorities
         else:
             prios = self.priorities[:len(self.buffer)]
-
-        scaled_prios = prios ** self.alpha
-        probs = scaled_prios / scaled_prios.sum()
-
+        
+        # 高效地計算採樣概率
+        probs = prios ** self.alpha
+        probs /= probs.sum()
+        
+        # 使用numpy.random.choice進行一次性採樣
         indices = np.random.choice(len(self.buffer), batch_size, p=probs)
-        transitions = [self.buffer[idx] for idx in indices]
-
+        
+        # 使用NumPy向量化操作處理權重計算
         weights = (len(self.buffer) * probs[indices]) ** (-self.beta)
-        weights /= weights.max()          # normalize
-        weights = torch.tensor(weights, dtype=torch.float32)
-
-        states, actions, rewards, next_states, dones = zip(*transitions)
+        weights /= weights.max()
         
-        # 處理LazyFrames物件
-        processed_states = []
-        processed_next_states = []
+        # 直接獲取緩衝區數據的批次
+        samples = [self.buffer[idx] for idx in indices]
         
-        for s in states:
-            if hasattr(s, 'frames'):  # 檢查是否為LazyFrames對象
-                frames = [np.array(f) for f in s.frames]
-                processed_states.append(np.stack(frames, axis=0))
-            else:
-                processed_states.append(np.array(s))
-                
-        for s in next_states:
-            if hasattr(s, 'frames'):  # 檢查是否為LazyFrames對象
-                frames = [np.array(f) for f in s.frames]
-                processed_next_states.append(np.stack(frames, axis=0))
-            else:
-                processed_next_states.append(np.array(s))
+        # 高效拆分轉換元組
+        states, actions, rewards, next_states, dones = map(np.array, zip(*samples))
         
-        # 返回處理後的數據
-        return (
-            np.array(processed_states), 
-            np.array(actions), 
-            np.array(rewards, dtype=np.float32),
-            np.array(processed_next_states), 
-            np.array(dones, dtype=np.float32),
-            indices, 
-            weights
-        )
+        return states, actions, rewards, next_states, dones, indices, weights
         ########## END OF YOUR CODE (for Task 3) ########## 
 
     def update_priorities(self, indices, errors):
@@ -329,17 +307,13 @@ class DQNAgent:
     def select_action(self, state):
         if random.random() < self.epsilon:
             return random.randint(0, self.num_actions - 1)
-        if hasattr(state, 'frames'):
-            frames = [np.array(f) for f in state.frames]
-            state_array = np.stack(frames, axis=0)
-            state_tensor = torch.from_numpy(state_array).float().unsqueeze(0)
-        else:
-            state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0)
-
+            
+        # 直接使用numpy數組化轉換，讓LazyFrames的__array__方法自動處理
+        state_tensor = torch.from_numpy(np.array(state, dtype=np.float32)).unsqueeze(0).to(self.device)
+        
         if self.is_atari:
             state_tensor = state_tensor / 255.0
-        state_tensor = state_tensor.to(self.device)
-        
+            
         with torch.no_grad():
             q_values = self.q_net(state_tensor)
         return q_values.argmax().item()
@@ -519,15 +493,8 @@ class DQNAgent:
         ########## END OF YOUR CODE ##########
 
         # Convert the states, actions, rewards, next_states, and dones into torch tensors
-        try:
-            states = torch.FloatTensor(states).to(self.device)
-            next_states = torch.FloatTensor(next_states).to(self.device)
-        except ValueError as e:
-            print(f"錯誤：無法將狀態轉換為張量: {e}")
-            print(f"states類型: {type(states)}")
-            if isinstance(states, np.ndarray) and len(states) > 0:
-                print(f"states[0]類型: {type(states[0])}")
-            return  # 跳過這次訓練步驟
+        states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
+        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(self.device)
         if self.is_atari:
             states = states / 255.0
             next_states = next_states / 255.0
@@ -545,7 +512,7 @@ class DQNAgent:
             next_q_target = self.target_net(next_states)                       \
                                 .gather(1, next_actions.unsqueeze(1))          \
                                 .squeeze(1)                                    # ❸ 目標網路估價
-            target_q_values = rewards*1.2 + (1 - dones) * self.gamma_n * next_q_target
+            target_q_values = rewards + (1 - dones) * self.gamma_n * next_q_target
         td_errors = target_q_values - q_values             # δ_i
         # loss = (weights * td_errors.pow(2)).mean()         # 乘 IS-weights
         loss = (weights * huber_loss(td_errors)).mean()
