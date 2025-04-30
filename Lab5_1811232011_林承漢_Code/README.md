@@ -245,7 +245,7 @@ python dqn_v4.4.1.py
   --wandb-run-name "pong-enhanced-v4.4"
   --batch-size 128
   --memory-size 150000
-  --lr 0.0.00025
+  --lr 0.00025
   --epsilon-start 0.4
   --epsilon-decay 0.999
   --epsilon-min 0.1
