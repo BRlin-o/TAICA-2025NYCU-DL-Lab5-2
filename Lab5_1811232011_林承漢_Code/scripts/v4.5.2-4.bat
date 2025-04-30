@@ -1,0 +1,18 @@
+python dqn_v4.5.s.py 
+  --env-name "ALE/Pong-v5" 
+  --wandb-run-name "Ultra-Fast-200K" 
+  --wandb-project "DLP-Lab5-Task3-Sprint(4080)" 
+  --batch-size 128 
+  --memory-size 100000 
+  --lr 0.0004 
+  --discount-factor 0.99 
+  --epsilon-start 0.2 
+  --epsilon-min 0.02 
+  --linear-decay-steps 75000 
+  --target-update-frequency 500 
+  --replay-start-size 5000 
+  --train-per-step 8 
+  --frame-skip 3 
+  --n-step 4 
+  --per-alpha 0.9 
+  --per-beta-start 0.6
