@@ -236,6 +236,31 @@ python dqn_v4.4.py
   --episodes 2000
 ```
 
+- v4.4.1(RTX4080)
+
+```bash
+python dqn_v4.4.1.py 
+  --env-name "ALE/Pong-v5"
+  --wandb-project "DLP-Lab5-DQN-Pong(T3)-4080"
+  --wandb-run-name "pong-enhanced-v4.4"
+  --batch-size 512
+  --memory-size 150000
+  --lr 0.0.0005
+  --epsilon-start 0.4
+  --epsilon-decay 0.999
+  --epsilon-min 0.1
+  --target-update-frequency 500
+  --replay-start-size 30000
+  --max-episode-steps 10000
+  --train-per-step 8
+  --frame-skip 4
+  --linear-decay-steps 100000
+  --n-step 10
+  --per-alpha 0.7
+  --per-beta-start 0.5
+  --episodes 1000
+```
+
 - v4.4(RTX4080) - 2
 
 ```bash
