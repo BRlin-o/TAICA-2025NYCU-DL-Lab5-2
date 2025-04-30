@@ -1,0 +1,16 @@
+python dqn_v4.5.py 
+  --env-name "ALE/Pong-v5" 
+  --wandb-run-name "Enhanced-DQN-Optimized" 
+  --batch-size 128 
+  --memory-size 150000 
+  --lr 0.0005 
+  --discount-factor 0.99 
+  --epsilon-start 0.2 
+  --epsilon-min 0.01 
+  --linear-decay-steps 200000 
+  --target-update-frequency 1000 
+  --replay-start-size 10000 
+  --train-per-step 8 
+  --n-step 3 
+  --per-alpha 0.8 
+  --per-beta-start 0.6
