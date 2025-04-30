@@ -46,6 +46,10 @@ class LazyFrames:
             # Stack along channel dimension: (C, H, W)
             self.out = np.stack(self.frames, axis=0)
         return self.out.astype(dtype) if dtype else self.out
+    
+    def __torch_tensor__(self):
+        # 新增方法，實現 torch 轉換
+        return torch.from_numpy(np.array(self))
 
     def __len__(self):
         return len(self.frames)
@@ -333,6 +337,7 @@ class DQNAgent:
             return random.randint(0, self.num_actions - 1)
         # state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0).to(self.device)
         state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0)
+        # state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
         if self.is_atari:
             state_tensor = state_tensor / 255.0
         state_tensor = state_tensor.to(self.device)
@@ -456,7 +461,7 @@ class DQNAgent:
                     ########## END OF YOUR CODE ##########   
 
                 if self.env_count % 5000 == 0 and self.env_count > 0:
-                    eval_reward = self.evaluate()
+                    eval_reward, eval_std = self.evaluate()
 
                     if eval_reward > self.best_reward:
                         self.best_reward = eval_reward
@@ -519,6 +524,7 @@ class DQNAgent:
             
             while not done:
                 state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0)
+                # state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
                 if self.is_atari:
                     state_tensor = state_tensor / 255.0
                 state_tensor = state_tensor.to(self.device)
