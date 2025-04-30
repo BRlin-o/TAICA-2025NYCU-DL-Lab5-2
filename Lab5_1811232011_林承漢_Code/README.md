@@ -58,12 +58,31 @@ python dqn_v2.py --env-name="CartPole-v1" \
 
 ### Task2
 
+- v3
+
 ```bash
 python dqn_v3.py --env-name "ALE/Pong-v5" \
     --wandb-project "DLP-Lab5-DQN-Pong(T2)-MPX" \
     --wandb-run-name "pong-optimized-4" \
     --batch-size 32 \
     --memory-size 200000 \
+    --lr 0.00025 \
+    --linear-decay-steps 1000000 \
+    --frame-skip 4 \
+    --train-per-step 2 \
+    --target-update-frequency 10000 \
+    --replay-start-size 5000 \
+    --episodes 4000
+```
+
+- v4
+
+```bash
+python dqn_v4.py --env-name "ALE/Pong-v5" \
+    --wandb-project "DLP-Lab5-DQN-Pong(T2v4)-MPS" \
+    --wandb-run-name "pong-fskip" \
+    --batch-size 32 \
+    --memory-size 100000 \
     --lr 0.00025 \
     --linear-decay-steps 1000000 \
     --frame-skip 4 \

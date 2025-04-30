@@ -9,6 +9,10 @@ import torch.optim as optim
 import numpy as np
 import os, random, time
 import gymnasium as gym
+try:
+    from gymnasium.wrappers.frame_skip import FrameSkip
+except ImportError:
+    from gymnasium.wrappers.atari_preprocessing import AtariPreprocessing as FrameSkip
 import cv2
 import ale_py
 from collections import deque
@@ -67,9 +71,24 @@ class AtariPreprocessor:
         self.frames = deque(maxlen=frame_stack)
 
     def preprocess(self, obs):
-        gray = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        # 若形狀是 (1, H, W) 先去掉通道維度
+        if obs.ndim == 3 and obs.shape[0] == 1:
+            obs = obs.squeeze(0)
+
+        
+        cropped = obs[34:194]
+        # gray = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        if obs.ndim == 3 and obs.shape[2] == 3:           # RGB → Gray
+            # gray = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+            gray = cv2.cvtColor(cropped, cv2.COLOR_RGB2GRAY)
+        elif obs.ndim == 2:                               # 已經是灰階
+            # gray = obs
+            gray = cropped
+        else:
+            raise ValueError(f"Unexpected observation shape {obs.shape}")
         resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
-        return resized
+        normalized = resized / 255.0
+        return normalized
 
     def reset(self, obs):
         frame = self.preprocess(obs)
@@ -114,8 +133,14 @@ class PrioritizedReplayBuffer:
 
 class DQNAgent:
     def __init__(self, env_name="ALE/Pong-v5", args=None):
-        self.env = gym.make(env_name, render_mode="rgb_array")
-        self.test_env = gym.make(env_name, render_mode="rgb_array")
+        # self.env = gym.make(env_name, render_mode="rgb_array")
+        base_env = gym.make(env_name, render_mode="rgb_array", frameskip=1)
+        self.env = FrameSkip(base_env, frame_skip=args.frame_skip)
+
+        # self.test_env = gym.make(env_name, render_mode="rgb_array")
+        test_base_env = gym.make(env_name, render_mode="rgb_array", frameskip=1)
+        self.test_env = FrameSkip(test_base_env, frame_skip=args.frame_skip)
+        
         self.num_actions = self.env.action_space.n
 
         # 確定是否為 Atari 環境（例如 Pong）
@@ -154,8 +179,10 @@ class DQNAgent:
         self.batch_size = args.batch_size
         self.gamma = args.discount_factor
         self.epsilon = args.epsilon_start
+        self.epsilon_start = args.epsilon_start
         self.epsilon_decay = args.epsilon_decay
         self.epsilon_min = args.epsilon_min
+        self.linear_decay_steps = args.linear_decay_steps
 
         self.episode = 0
         self.env_count = 0
@@ -188,7 +215,7 @@ class DQNAgent:
             q_values = self.q_net(state_tensor)
         return q_values.argmax().item()
 
-    def run(self, episodes=1000, checkpoint_path=None, checkpoint_interval=100):
+    def run(self, episodes=1000, checkpoint_path=None, checkpoint_interval=10000):
         self.load_checkpoint(checkpoint_path)
         while self.episode < episodes:
             obs, _ = self.env.reset()
@@ -225,31 +252,33 @@ class DQNAgent:
                     print(f"[Collect] Ep: {self.episode} Step: {step_count} SC: {self.env_count} UC: {self.train_count} Eps: {self.epsilon:.4f}")
                     ########## YOUR CODE HERE  ##########
                     wandb.log({
+                        "env_step": self.env_count, # 當前環境交互的總步數
                         "progress/episode": self.episode, # 當前訓練回合數
                         "progress/step_count": step_count, # 當前回合已執行的步數
                         "progress/env_step_count": self.env_count, # 與環境交互的總步數（累積值）
                         "progress/update_count": self.train_count, # 網絡更新（梯度下降）總次數
                         "agent/epsilon": self.epsilon,
                         "agent/buffer_size": len(self.memory) # 經驗回放緩衝區的樣本數量
-                    }, step=self.env_count)
+                    })
                     ########## END OF YOUR CODE ##########   
+
+                if self.env_count % checkpoint_interval == 0:
+                    self.save_checkpoint(f"model_step{self.env_count}.pt", is_periodic=True)
             
             print(f"[Eval] Ep: {self.episode} Total Reward: {total_reward} SC: {self.env_count} UC: {self.train_count} Eps: {self.epsilon:.4f}")
             ########## YOUR CODE HERE  ##########
             wandb.log({
+                "env_step": self.env_count,
                 "progress/episode": self.episode,
                 "performance/episode_reward": total_reward,  # 關鍵指標，用於繪製圖表
                 "progress/env_step_count": self.env_count,
                 "progress/update_count": self.train_count,
                 "agent/epsilon": self.epsilon,
                 "performance/episode_length": step_count
-            }, step=self.env_count)
+            })
             ########## END OF YOUR CODE ##########  
 
-            if self.episode % checkpoint_interval == 0:
-                self.save_checkpoint(f"model_ep{self.episode}.pt", is_periodic=True)
-
-            if self.episode % 20 == 0: ## best evaluate check
+            if self.episode % 5 == 0: ## best evaluate check
                 eval_reward = self.evaluate()
 
                 if eval_reward > self.best_reward:
@@ -259,18 +288,25 @@ class DQNAgent:
 
                 print(f"[TrueEval] Ep: {self.episode} Eval Reward: {eval_reward:.2f} SC: {self.env_count} UC: {self.train_count}")
                 wandb.log({
+                    "env_step": self.env_count,
                     "progress/env_step_count": self.env_count,
                     "progress/update_count": self.train_count,
                     "evaluation/episode_reward": eval_reward,  # 關鍵指標，區分於訓練獎勵
                     "evaluation/best_reward": self.best_reward
-                }, step=self.env_count)
+                })
 
                 # task requirement(T1)
                 wandb.log({
+                    "env_step": self.env_count,
                     "Episode Reward vs Env Steps": eval_reward  # 直接用這個名稱便於在Wandb中找到
-                }, step=self.env_count)
+                })
 
-            self.save_checkpoint("latest.pt")  # Save latest checkpoint
+            # Save checkpoints with adaptive frequency based on episode number
+            if (self.episode < 100 and self.episode % 50 == 0 and self.episode > 0) or \
+                (100 <= self.episode < 500 and self.episode % 25 == 0) or \
+                (500 <= self.episode < 1000 and self.episode % 15 == 0) or \
+                (self.episode >= 1000 and self.episode % 10 == 0):
+                 self.save_checkpoint("latest.pt")  # Save latest checkpoint
 
             self.episode += 1
 
@@ -307,7 +343,9 @@ class DQNAgent:
         
         # Decay function for epsilin-greedy exploration
         if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+            # self.epsilon *= self.epsilon_deca
+            decay_rate = (self.epsilon_start - self.epsilon_min) / self.linear_decay_steps
+            self.epsilon = max(self.epsilon_min, self.epsilon - decay_rate)
         self.train_count += 1
        
         ########## YOUR CODE HERE (<5 lines) ##########
@@ -346,7 +384,13 @@ class DQNAgent:
 
         # NOTE: Enable this part if "loss" is defined
         if self.train_count % 1000 == 0:
-            print(f"[Train #{self.train_count}] Loss: {loss.item():.4f} Q mean: {q_values.mean().item():.3f} std: {q_values.std().item():.3f}")
+            print(f"[Train #{self.train_count}] Loss: {loss.item():.4f}, Q mean: {q_values.mean().item():.3f}, std: {q_values.std().item():.3f}")
+            wandb.log({
+                "train_step": self.train_count,
+                "train/loss": loss.item(),
+                "train/q_mean": q_values.mean().item(),
+                "train/q_std": q_values.std().item()
+            })
 
     def save_checkpoint(self, name="latest.pt", is_best=False, is_periodic=False):
         """
@@ -460,14 +504,15 @@ class DQNAgent:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-name", type=str, default="ALE/Pong-v5", help="環境名稱") # ["CartPole-v1", "ALE/Pong-v5"]
+    parser.add_argument("--env-name", type=str, default="ALE/Pong-v5", 
+                            help="環境名稱") # ["CartPole-v1", "ALE/Pong-v5"]
     parser.add_argument("--save-dir", type=str, default="./results")
     parser.add_argument("--wandb-run-name", type=str, default="pong-run")
     parser.add_argument("--wandb-project", type=str, default="DLP-Lab5-DQN-Pong(T2) v2")
     parser.add_argument("--wandb-id", type=str, default=None)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--memory-size", type=int, default=100000)
-    parser.add_argument("--lr", type=float, default=0.0001)
+    parser.add_argument("--memory-size", type=int, default=200000)
+    parser.add_argument("--lr", type=float, default=0.00025)
     parser.add_argument("--discount-factor", type=float, default=0.99)
     parser.add_argument("--epsilon-start", type=float, default=1.0)
     parser.add_argument("--epsilon-decay", type=float, default=0.999999)
@@ -477,8 +522,10 @@ if __name__ == "__main__":
     parser.add_argument("--replay-start-size", type=int, default=50000)
     parser.add_argument("--max-episode-steps", type=int, default=10000)
     parser.add_argument("--train-per-step", type=int, default=1)
-    parser.add_argument("--checkpoint-interval", type=int, default=100)
+    parser.add_argument("--checkpoint-interval", type=int, default=50000)
     parser.add_argument("--frame-skip", type=int, default=4, help="Atari環境跳過的幀數")
+    parser.add_argument("--linear-decay-steps", type=int, default=1000000,
+                            help="ε 由 ε_start 線性降到 ε_min 所需的 env steps 數")
     args = parser.parse_args()
 
     def check_env(env_name):
@@ -499,6 +546,8 @@ if __name__ == "__main__":
         "max_episode_steps": args.max_episode_steps,
         "train_per_step": args.train_per_step,
         "frame_skip": args.frame_skip,
+        "linear_decay_steps": args.linear_decay_steps,
+        "epsilon_schedule": "linear",
         "architecture": "2-layer MLP (128, 128)" if check_env(args.env_name) else "CNN",
         "optimizer": "Adam",
         "loss_function": "MSE"
@@ -534,6 +583,13 @@ if __name__ == "__main__":
         save_code=True,
         tags=["task1", "cartpole", "dqn"] if check_env(args.env_name) else ["task2", "pong", "dqn"],
     )
+
+    wandb.define_metric("env_step")
+    wandb.define_metric("train_step")
+    wandb.define_metric("progress/*",   step_metric="env_step")
+    wandb.define_metric("performance/*", step_metric="env_step")
+    wandb.define_metric("evaluation/*",  step_metric="env_step")
+    wandb.define_metric("train/*",      step_metric="train_step")
     
     agent.set_save_dir(wandb.run.id)
 
