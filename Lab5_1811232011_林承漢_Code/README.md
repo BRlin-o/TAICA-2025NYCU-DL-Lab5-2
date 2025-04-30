@@ -266,6 +266,8 @@ python dqn_v4.4.1.py
 ```bash
 python dqn_v4.4.1.py \
   --env-name="ALE/Pong-v5" \
+  --wandb-project "DLP-Lab5-DQN-Pong(T3)-MPS" \
+  --wandb-run-name "pong-enhanced-v4.4.1" \
   --batch-size 64 \
   --memory-size 300000 \
   --lr 0.00025 \
@@ -307,6 +309,50 @@ python dqn_v4.4.py
   --per-beta-start=0.4
   --episodes=1500
   --checkpoint-interval=25000
+```
+
+- 4.5
+
+```bash
+python dqn_v4.5.py \
+  --env-name="ALE/Pong-v5" \
+  --wandb-project "DLP-Lab5-DQN-Pong(T3)-MPS" \
+  --wandb-run-name "pong-enhanced-v4.5" \
+  --batch-size 64 \
+  --memory-size 300000 \
+  --lr 0.00025 \
+  --epsilon-decay 0.99999 \
+  --target-update-frequency 100 \
+  --replay-start-size 25000 \
+  --max-episode-steps 10000 \
+  --train-per-step 2 \
+  --frame-skip 4 \
+  --linear-decay-steps 100000 \
+  --n-step 3 \
+  --per-alpha 0.6 \
+  --per-beta-start 0.4 \
+  --episodes 3000
+```
+
+```bash
+python dqn_v4.5.py \
+  --env-name="ALE/Pong-v5" \
+  --wandb-project "DLP-Lab5-DQN-Pong(T3)-MPS" \
+  --wandb-run-name "pong-enhanced-fast" \
+  --batch-size 64 \
+  --memory-size 100000 \
+  --lr 0.00025 \
+  --epsilon-decay 0.99999 \
+  --target-update-frequency 500 \
+  --replay-start-size 10000 \
+  --max-episode-steps 4500 \
+  --train-per-step 4 \
+  --frame-skip 4 \
+  --linear-decay-steps 50000 \
+  --n-step 3 \
+  --per-alpha 0.6 \
+  --per-beta-start 0.4 \
+  --episodes 2000
 ```
 
 
