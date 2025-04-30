@@ -1,4 +1,4 @@
-python dqn_v4.5.py 
+python dqn_v4.5.2.py 
   --env-name "ALE/Pong-v5" 
   --wandb-run-name "Hyper-Optimized-DQN(4080)" 
   --wandb-project "DLP-Lab5-Task3-SpeedRun-4.5.2-1" 

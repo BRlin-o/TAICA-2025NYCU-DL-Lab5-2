@@ -1,6 +1,7 @@
 python dqn_v4.5.py 
   --env-name "ALE/Pong-v5" 
-  --wandb-run-name "Enhanced-DQN-Optimized" 
+  --wandb-run-name "Task3-DDQN-PER-MultiStep(4080)" 
+  --wandb-run-name "Enhanced-DQN-Optimized-2" 
   --batch-size 128 
   --memory-size 150000 
   --lr 0.0005 
