@@ -60,9 +60,9 @@ python dqn_v2.py --env-name="CartPole-v1" \
 
 ```bash
 python dqn_v3.py --env-name "ALE/Pong-v5" \
-    --wandb-project "DLP-Lab5-DQN-Pong(T2)" \
+    --wandb-project "DLP-Lab5-DQN-Pong(T2)-MPX" \
     --wandb-run-name "pong-optimized-4" \
-    --batch-size 64 \
+    --batch-size 32 \
     --memory-size 200000 \
     --lr 0.00025 \
     --linear-decay-steps 1000000 \

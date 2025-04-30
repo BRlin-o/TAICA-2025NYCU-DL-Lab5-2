@@ -2,8 +2,7 @@
 # Lab5: Value-based RL
 # Contributors: Wei Hung and Alison Wen
 # Instructor: Ping-Chun Hsieh
-import gc
-import psutil
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -59,58 +58,6 @@ class DQN(nn.Module):
         return self.network(x)
 
 
-# class AtariWrapper:
-#     """包裝Atari環境，實現幀跳過和終止管理"""
-#     def __init__(self, env, skip=4):
-#         self.env = env
-#         self.skip = skip
-#         self.lives = 0
-        
-#     def reset(self):
-#         obs, info = self.env.reset()
-#         self.lives = info.get('lives', 0)
-#         return obs, info
-        
-#     def step(self, action):
-#         total_reward = 0.0
-#         done = False
-#         info = {}
-        
-#         # 跳過frames，但保持同一個動作
-#         for i in range(self.skip):
-#             obs, reward, terminated, truncated, info = self.env.step(action)
-#             total_reward += reward
-#             done = terminated or truncated
-            
-#             # Pong特有：檢測生命損失作為"done"信號
-#             current_lives = info.get('lives', 0)
-#             if current_lives < self.lives:
-#                 done = True
-#                 self.lives = current_lives
-                
-#             if done:
-#                 break
-                
-#         return obs, total_reward, terminated, truncated, info
-class AtariWrapper:
-    """包装Atari环境，实现帧跳过和终止管理"""
-    def __init__(self, env, skip=4):
-        self.env = env
-        self.skip = skip
-        
-    def reset(self):
-        return self.env.reset()
-        
-    def step(self, action):
-        total_reward = 0.0
-        for i in range(self.skip):
-            obs, reward, terminated, truncated, info = self.env.step(action)
-            total_reward += reward
-            if terminated or truncated:
-                break
-        return obs, total_reward, terminated, truncated, info
-
-
 class AtariPreprocessor:
     """
         Preprocesing the state input of DQN for Atari
@@ -120,12 +67,9 @@ class AtariPreprocessor:
         self.frames = deque(maxlen=frame_stack)
 
     def preprocess(self, obs):
-        cropped = obs[34:194]
-        gray = cv2.cvtColor(cropped, cv2.COLOR_RGB2GRAY)
-        # gray = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        gray = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
         resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
-        normalized = resized / 255.0
-        return normalized
+        return resized
 
     def reset(self, obs):
         frame = self.preprocess(obs)
@@ -177,22 +121,16 @@ class DQNAgent:
         # 確定是否為 Atari 環境（例如 Pong）
         self.is_atari = env_name.startswith("ALE/")
 
-        self.uint8_states = args.use_uint8  # 使用uint8存儲而非float32
-
         # self.input_dim = self.env.observation_space.shape[0]
         # self.preprocessor = AtariPreprocessor()
         if self.is_atari:
             # Atari 環境使用圖像輸入
-            self.env = AtariWrapper(self.env, skip=args.frame_skip)
-            self.test_env = AtariWrapper(self.test_env, skip=args.frame_skip)
             self.preprocessor = AtariPreprocessor()
             self.input_shape = (4, 84, 84)  # 4 個堆疊的灰度圖像
         else:
             # CartPole 環境使用向量輸入
             self.preprocessor = AtariPreprocessor()  # 保持一致性，但實際上不會用於預處理
             self.input_shape = (self.env.observation_space.shape[0],)  # 例如 (4,) 對於 CartPole
-
-        
 
         if torch.backends.mps.is_available():
             self.device = torch.device("mps")
@@ -216,7 +154,6 @@ class DQNAgent:
         self.batch_size = args.batch_size
         self.gamma = args.discount_factor
         self.epsilon = args.epsilon_start
-        self.epsilon_start = args.epsilon_start
         self.epsilon_decay = args.epsilon_decay
         self.epsilon_min = args.epsilon_min
 
@@ -250,80 +187,10 @@ class DQNAgent:
         with torch.no_grad():
             q_values = self.q_net(state_tensor)
         return q_values.argmax().item()
-    
-    def clean_memory(self):
-        """執行內存清理，兼容macOS系統"""
-        try:
-            import gc
-            import sys
-            
-            # 1. 強制Python垃圾回收
-            print("執行Python垃圾回收...")
-            collected = gc.collect(generation=2)
-            print(f"回收了 {collected} 個對象")
-            
-            # 2. PyTorch特定的清理
-            if torch.cuda.is_available():
-                print("清理CUDA緩存...")
-                torch.cuda.empty_cache()
-            elif torch.backends.mps.is_available():
-                print("清理MPS緩存...")
-                torch.mps.empty_cache()
-            
-            # 3. 打印當前內存使用情況
-            try:
-                import psutil
-                process = psutil.Process()
-                memory_info = process.memory_info()
-                memory_mb = memory_info.rss / 1024 / 1024
-                print(f"當前內存使用: {memory_mb:.1f}MB")
-            except Exception as e:
-                print(f"內存清理過程中出現異常: {e}")
-            
-            # 4. 促進macOS釋放內存
-            if sys.platform == 'darwin':
-                print("嘗試促使macOS釋放內存...")
-                
-                # 先獲取當前內存使用
-                before = 0
-                if 'psutil' in sys.modules:
-                    before = psutil.Process().memory_info().rss / 1024 / 1024
-                
-                # 創建和刪除大的臨時數組
-                temp_array_size = 200  # MB
-                print(f"分配和釋放 {temp_array_size}MB 臨時內存...")
-                temp = bytearray(1024 * 1024 * temp_array_size)
-                del temp
-                gc.collect()
-                
-                # 再次獲取內存使用
-                if 'psutil' in sys.modules:
-                    after = psutil.Process().memory_info().rss / 1024 / 1024
-                    print(f"內存變化: {before:.1f}MB -> {after:.1f}MB ({after-before:.1f}MB)")
-        
-        except Exception as e:
-            print(f"內存清理過程中出現異常: {e}")
 
-    def add_to_memory(self, state, action, reward, next_state, done):
-        """使用內存高效的方式添加轉換"""
-        if self.uint8_states and isinstance(state, np.ndarray) and state.dtype != np.uint8:
-            # 將float32狀態(0-1)轉換為uint8(0-255)以節省內存
-            state_uint8 = (state * 255).astype(np.uint8)
-            next_state_uint8 = (next_state * 255).astype(np.uint8)
-            self.memory.append((state_uint8, action, reward, next_state_uint8, done))
-        else:
-            self.memory.append((state, action, reward, next_state, done))
-
-    def run(self, episodes=1000, checkpoint_path=None, checkpoint_interval=10000):
+    def run(self, episodes=1000, checkpoint_path=None, checkpoint_interval=100):
         self.load_checkpoint(checkpoint_path)
-
-        peak_memory_usage = 0
-
         while self.episode < episodes:
-            if self.episode % 2 == 0:
-                gc.collect()
-                if torch.backends.mps.is_available():
-                    torch.mps.empty_cache()
             obs, _ = self.env.reset()
 
             if self.is_atari:
@@ -332,23 +199,7 @@ class DQNAgent:
                 state = obs  # CartPole 直接使用原始狀態
             done = False
             total_reward = 0
-            step_count = 0 ## 環境步數
-
-            # 回合開始時執行垃圾回收
-            if self.episode % 5 == 0:  # 每5個回合執行一次
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                elif torch.backends.mps.is_available():
-                    torch.mps.empty_cache()
-                
-                # 可選：記錄和監控內存使用
-                if psutil:
-                    process = psutil.Process()
-                    current_memory = process.memory_info().rss / 1024 / 1024  # MB
-                    peak_memory_usage = max(peak_memory_usage, current_memory)
-                    if self.episode % 20 == 0:
-                        print(f"內存使用: {current_memory:.1f}MB | 峰值: {peak_memory_usage:.1f}MB")
-
+            step_count = 0
 
             while not done and step_count < self.max_episode_steps:
                 action = self.select_action(state)
@@ -360,10 +211,9 @@ class DQNAgent:
                 else:
                     next_state = next_obs
                 
-                self.add_to_memory(state, action, reward, next_state, done)
+                self.memory.append((state, action, reward, next_state, done))
 
                 for _ in range(self.train_per_step):
-                    # print(f"Calling train() - Memory: {len(self.memory)}/{self.replay_start_size}")
                     self.train()
 
                 state = next_state
@@ -383,9 +233,6 @@ class DQNAgent:
                         "agent/buffer_size": len(self.memory) # 經驗回放緩衝區的樣本數量
                     }, step=self.env_count)
                     ########## END OF YOUR CODE ##########   
-                
-                if self.env_count % checkpoint_interval == 0:
-                    self.save_checkpoint(f"model_step{self.env_count}.pt", is_periodic=True)
             
             print(f"[Eval] Ep: {self.episode} Total Reward: {total_reward} SC: {self.env_count} UC: {self.train_count} Eps: {self.epsilon:.4f}")
             ########## YOUR CODE HERE  ##########
@@ -399,7 +246,10 @@ class DQNAgent:
             }, step=self.env_count)
             ########## END OF YOUR CODE ##########  
 
-            if self.episode % 20 == 0:
+            if self.episode % checkpoint_interval == 0:
+                self.save_checkpoint(f"model_ep{self.episode}.pt", is_periodic=True)
+
+            if self.episode % 20 == 0: ## best evaluate check
                 eval_reward = self.evaluate()
 
                 if eval_reward > self.best_reward:
@@ -419,18 +269,8 @@ class DQNAgent:
                 wandb.log({
                     "Episode Reward vs Env Steps": eval_reward  # 直接用這個名稱便於在Wandb中找到
                 }, step=self.env_count)
-                self.clean_memory()
 
-            # if self.episode % 100 == 0:
-            #     self.save_checkpoint("latest.pt")  # Save latest checkpoint
-            # if self.episode % 100 == 0:  # 每100回合執行一次深度清理
-            #     print("執行深度內存清理...")
-            #     # 清空不需要的大型變數
-            #     torch.cuda.empty_cache() if torch.cuda.is_available() else None
-            #     gc.collect(generation=2)
-            #     # 強制釋放內存
-            #     import ctypes
-            #     ctypes.CDLL('libc.so.6').malloc_trim(0)
+            self.save_checkpoint("latest.pt")  # Save latest checkpoint
 
             self.episode += 1
 
@@ -461,16 +301,13 @@ class DQNAgent:
 
 
     def train(self):
-        # print(f"Memory size: {len(self.memory)}/{self.replay_start_size}")
+
         if len(self.memory) < self.replay_start_size:
             return 
         
         # Decay function for epsilin-greedy exploration
         if self.epsilon > self.epsilon_min:
-            self.epsilon = max(
-                self.epsilon_min, 
-                self.epsilon - (self.epsilon_start - self.epsilon_min) / args.linear_decay_steps
-            )
+            self.epsilon *= self.epsilon_decay
         self.train_count += 1
        
         ########## YOUR CODE HERE (<5 lines) ##########
@@ -577,7 +414,6 @@ class DQNAgent:
         """
         if path is None:
             path = self.find_latest_checkpoint()
-            print(f"正在加載最新檢查點: {path}")
             if path is None:
                 print("未找到可加載的檢查點")
                 return False
@@ -586,82 +422,63 @@ class DQNAgent:
             print(f"檢查點文件 {path} 不存在")
             return False
             
-        ckpt = torch.load(path, map_location=self.device, weights_only=False)
-        
-        # 加載模型參數
-        self.q_net.load_state_dict(ckpt["q_net"])
-        self.target_net.load_state_dict(ckpt["target_net"])
-        self.optimizer.load_state_dict(ckpt["optim"])
-        
-        # 恢復訓練狀態
-        self.epsilon = ckpt["epsilon"]
-        self.env_count = ckpt["env_count"]
-        self.train_count = ckpt["train_count"]
-        self.best_reward = ckpt.get("best_reward", 0)
-        self.episode = ckpt.get("episode", 0)
-        
-        # 檢查環境類型是否匹配
-        ckpt_is_atari = ckpt.get("is_atari", None)
-        if ckpt_is_atari is not None and ckpt_is_atari != self.is_atari:
-            print(f"警告: 檢查點環境類型 ({ckpt_is_atari}) 與當前環境類型 ({self.is_atari}) 不匹配!")
-        
-        # 恢復經驗回放緩衝區
-        if "memory" in ckpt:
-            self.memory = deque(ckpt["memory"], maxlen=self.memory.maxlen)
-        
-        # 獲取 wandb_id 並設置保存目錄
-        wandb_id = ckpt.get("wandb_id", None)
-        if wandb_id and wandb_id != self.wandb_id:
-            self.set_save_dir(wandb_id)
-        
-        print(f"檢查點已從 {path} 加載")
-        print(f"恢復至: 回合={self.episode}, 環境步數={self.env_count}, 訓練次數={self.train_count}")
-        return True
-
-import matplotlib.pyplot as plt
-
-def demo_preprocess(env_name="ALE/Pong-v5"):
-    env = gym.make(env_name, render_mode="rgb_array")
-    obs, _ = env.reset()
-    preprocessor = AtariPreprocessor()
-
-    stacked_state = preprocessor.reset(obs)  # shape: (4, 84, 84)
-
-    fig, axs = plt.subplots(1, 4, figsize=(12, 4))
-    for i in range(4):
-        axs[i].imshow(stacked_state[i], cmap='gray')
-        axs[i].set_title(f'Frame {i+1}')
-        axs[i].axis('off')
-    plt.suptitle("Preprocessed & Stacked Frames (84x84 Grayscale)")
-    plt.tight_layout()
-    plt.show()
+        try:
+            ckpt = torch.load(path, map_location=self.device)
+            
+            # 加載模型參數
+            self.q_net.load_state_dict(ckpt["q_net"])
+            self.target_net.load_state_dict(ckpt["target_net"])
+            self.optimizer.load_state_dict(ckpt["optim"])
+            
+            # 恢復訓練狀態
+            self.epsilon = ckpt["epsilon"]
+            self.env_count = ckpt["env_count"]
+            self.train_count = ckpt["train_count"]
+            self.best_reward = ckpt.get("best_reward", 0)
+            self.episode = ckpt.get("episode", 0)
+            
+            # 檢查環境類型是否匹配
+            ckpt_is_atari = ckpt.get("is_atari", None)
+            if ckpt_is_atari is not None and ckpt_is_atari != self.is_atari:
+                print(f"警告: 檢查點環境類型 ({ckpt_is_atari}) 與當前環境類型 ({self.is_atari}) 不匹配!")
+            
+            # 恢復經驗回放緩衝區
+            if "memory" in ckpt:
+                self.memory = deque(ckpt["memory"], maxlen=self.memory.maxlen)
+            
+            # 獲取 wandb_id 並設置保存目錄
+            wandb_id = ckpt.get("wandb_id", None)
+            if wandb_id and wandb_id != self.wandb_id:
+                self.set_save_dir(wandb_id)
+            
+            print(f"檢查點已從 {path} 加載")
+            print(f"恢復至: 回合={self.episode}, 環境步數={self.env_count}, 訓練次數={self.train_count}")
+            return True
+        except Exception as e:
+            print(f"加載檢查點時出錯: {e}")
+            return False
 
 if __name__ == "__main__":
-    # demo_preprocess()
     parser = argparse.ArgumentParser()
     parser.add_argument("--env-name", type=str, default="ALE/Pong-v5", help="環境名稱") # ["CartPole-v1", "ALE/Pong-v5"]
-    parser.add_argument("--save-dir", type=str, default="./results/task2")
+    parser.add_argument("--save-dir", type=str, default="./results")
     parser.add_argument("--wandb-run-name", type=str, default="pong-run")
-    parser.add_argument("--wandb-project", type=str, default="DLP-Lab5-DQN-Pong(T1)")
+    parser.add_argument("--wandb-project", type=str, default="DLP-Lab5-DQN-Pong(T2) v2")
     parser.add_argument("--wandb-id", type=str, default=None)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--memory-size", type=int, default=200000)
-    parser.add_argument("--lr", type=float, default=0.00025)
+    parser.add_argument("--memory-size", type=int, default=100000)
+    parser.add_argument("--lr", type=float, default=0.0001)
     parser.add_argument("--discount-factor", type=float, default=0.99)
     parser.add_argument("--epsilon-start", type=float, default=1.0)
     parser.add_argument("--epsilon-decay", type=float, default=0.999999)
     parser.add_argument("--epsilon-min", type=float, default=0.05)
     parser.add_argument("--episodes", type=int, default=4000, help="訓練回合數")
     parser.add_argument("--target-update-frequency", type=int, default=1000)
-    parser.add_argument("--replay-start-size", type=int, default=5000)
+    parser.add_argument("--replay-start-size", type=int, default=50000)
     parser.add_argument("--max-episode-steps", type=int, default=10000)
-    parser.add_argument("--train-per-step", type=int, default=4)
-    parser.add_argument("--checkpoint-interval", type=int, default=10000)
+    parser.add_argument("--train-per-step", type=int, default=1)
+    parser.add_argument("--checkpoint-interval", type=int, default=100)
     parser.add_argument("--frame-skip", type=int, default=4, help="Atari環境跳過的幀數")
-    parser.add_argument("--linear-decay-steps", type=int, default=1000000, help="線性衰減的總步數")
-    parser.add_argument("--use-dueling", action="store_true", help="是否使用Dueling架構")
-    parser.add_argument("--use-uint8", action="store_true", help="是否使用uint8存儲狀態")
-    
     args = parser.parse_args()
 
     def check_env(env_name):
@@ -681,6 +498,7 @@ if __name__ == "__main__":
         "replay_start_size": args.replay_start_size,
         "max_episode_steps": args.max_episode_steps,
         "train_per_step": args.train_per_step,
+        "frame_skip": args.frame_skip,
         "architecture": "2-layer MLP (128, 128)" if check_env(args.env_name) else "CNN",
         "optimizer": "Adam",
         "loss_function": "MSE"
