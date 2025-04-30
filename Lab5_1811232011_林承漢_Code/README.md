@@ -82,14 +82,103 @@ python dqn_v4.py --env-name "ALE/Pong-v5" \
     --wandb-project "DLP-Lab5-DQN-Pong(T2v4)-MPS" \
     --wandb-run-name "pong-fskip" \
     --batch-size 32 \
-    --memory-size 100000 \
+    --memory-size 200000 \
     --lr 0.00025 \
-    --linear-decay-steps 1000000 \
+    --linear-decay-steps 500000 \
     --frame-skip 4 \
     --train-per-step 2 \
     --target-update-frequency 10000 \
-    --replay-start-size 5000 \
+    --replay-start-size 25000 \
     --episodes 4000
+```
+
+- v4.2
+
+```bash
+python dqn_v4.2.py \
+  --env-name "ALE/Pong-v5" \
+  --wandb-project "DLP-Lab5-DQN-Pong(T3)-MPS" \
+  --wandb-run-name "pong-enhanced-v4.2" \
+  --batch-size 32 \
+  --memory-size 200000 \
+  --lr 6.25e-5 \
+  --linear-decay-steps 1000000 \
+  --frame-skip 4 \
+  --train-per-step 1 \
+  --target-update-frequency 5000 \
+  --replay-start-size 50000 \
+  --n-step 3 \
+  --per-alpha 0.6 \
+  --per-beta-start 0.4 \
+  --episodes 5000
+```
+- --batch-size 32             32 對 84×84×4 圖像在 M4 Pro 48 GB 最穩
+- --memory-size 200000        20 萬筆 ≈ 13 GB UMA，可全放 RAM
+- --lr 6.25e-5                2.5e-4 / 4 —— 文獻建議 PER + n-step 時降 LR
+- --linear-decay-steps 100    ε、β 線性退火到 1 M env-steps（與論文同步）
+- --frame-skip 4              Atari 標準
+- --train-per-step 1          每與環境互動 1 步就更新 1 次（PER 已提高 sample-efficiency）
+- --target-update-frequenc    Double DQN：較頻繁同步 target 可減 bias
+- --replay-start-size 5000    先 warm-up 5 萬步再訓練（確保樣本多樣）
+- --n-step 3                  ★ Task-3: n-step return
+- --per-alpha 0.6             ★ Task-3: PER exponent α
+- --per-beta-start 0.4        ★ Task-3: 初始 β，之後程式會線性漸進到 1
+- --episodes 5000             保持 4 K–5 K 回合就能到 1 M steps
+
+- v4.3
+
+```bash
+python dqn_v4.3.py \
+  --env-name "ALE/Pong-v5" \
+  --wandb-project "DLP-Lab5-DQN-Pong(T3)" \
+  --wandb-run-name "pong-enhanced(duel+noisy+drq)-2" \
+  --batch-size 32 \
+  --memory-size 200000 \
+  --lr 6.25e-5 \
+  --frame-skip 4 \
+  --train-per-step 4 \
+  --target-update-frequency 5000 \
+  --replay-start-size 20000 \
+  --linear-decay-steps 1000000 \
+  --n-step 5 \
+  --per-alpha 0.5 \
+  --per-beta-start 0.4 \
+  --episodes 5000
+```
+
+- v5
+
+```bash
+python dqn_v5.py \
+  --env-name ALE/Pong-v5 \
+  --wandb-project "DLP-Lab5-DQN-Pong(T3v5)-MPS" \
+  --wandb-run-name "task3-enhanced-bs64" \
+  --batch-size 64 \
+  --memory-size 200000 \
+  --replay-start-size 20000 \
+  --linear-decay-steps 300000 \
+  --epsilon-start 0.9 \
+  --n-step 3 \
+  --per-alpha 0.6 \
+  --per-beta-start 0.4 
+```
+
+- v5(uint8)
+
+```bash
+python dqn_v5.py \
+  --env-name ALE/Pong-v5 \
+  --wandb-project "DLP-Lab5-DQN-Pong(T3v5)-MPS" \
+  --wandb-run-name "task3-enhanced-uint8" \
+  --batch-size 64 \
+  --memory-size 200000 \
+  --replay-start-size 20000 \
+  --linear-decay-steps 300000 \
+  --epsilon-start 0.9 \
+  --n-step 3 \
+  --per-alpha 0.6 \
+  --per-beta-start 0.4 \
+  --use-uint8
 ```
 
 ## Evaluation
@@ -103,3 +192,12 @@ python evaluate_cartpole.py --model-path="./results/b7axzvnl/best_model.pt" --ep
 ### Task1
 
 - [b7axzvnl](https://wandb.ai/brend-main-nutc/DLP-Lab5-Task1/runs/b7axzvnl)
+
+
+## 版本說明
+- dqn_v2.py 完成了task1
+- dqn_v3.py 嘗試了task2但有點失敗
+- dqn_v4.py 嘗試task3中
+- dqn_v4.2.py 基本完成task3要求 但效果不佳
+- dqn_v4.3.py 接續4.2新增duel+noisy+drq
+- dqn_v5.py 嘗試task3中 use-uint8
