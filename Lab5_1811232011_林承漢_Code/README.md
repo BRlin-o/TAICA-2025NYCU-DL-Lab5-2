@@ -26,6 +26,10 @@ pip install -r requirements.txt
 pip install -r requirements_CUDA.txt
 ```
 
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu126
+```
+
 
 ## Run
 
