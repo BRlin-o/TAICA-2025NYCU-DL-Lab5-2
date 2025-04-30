@@ -1,4 +1,4 @@
-python dqn_v4.5.s.py 
+python dqn_v4.5.2.py 
   --env-name "ALE/Pong-v5" 
   --wandb-run-name "Ultra-Fast-200K" 
   --wandb-project "DLP-Lab5-Task3-Sprint(4080)" 
