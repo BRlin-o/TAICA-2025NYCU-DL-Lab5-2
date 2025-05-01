@@ -304,10 +304,10 @@ class DQNAgent:
             self.device = torch.device("mps")
         elif torch.cuda.is_available():
             self.device = torch.device("cuda")
+            torch.backends.cudnn.benchmark = True
         else:
             self.device = torch.device("cpu")
         print("Using device:", self.device)
-        torch.backends.cudnn.benchmark = True
 
         self.q_net = DQN(self.num_actions, self.input_shape, use_cnn=self.is_atari).to(self.device)
         self.q_net.apply(init_weights)
