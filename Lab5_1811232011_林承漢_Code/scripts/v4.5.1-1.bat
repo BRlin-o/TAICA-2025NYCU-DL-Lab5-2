@@ -1,0 +1,18 @@
+python dqn_v4.5.py 
+  --env-name "ALE/Pong-v5" 
+  --wandb-run-name "Task3-DDQN-PER-MultiStep(4080)" 
+  --wandb-project "DLP-Lab5-Task3-Enhanced-DQN" 
+  --batch-size 64 
+  --memory-size 200000 
+  --lr 0.00025 
+  --discount-factor 0.99 
+  --epsilon-start 0.4 
+  --epsilon-min 0.025 
+  --linear-decay-steps 1000000 
+  --target-update-frequency 1000 
+  --replay-start-size 20000 
+  --train-per-step 4 
+  --frame-skip 4 
+  --n-step 5 
+  --per-alpha 0.6 
+  --per-beta-start 0.4

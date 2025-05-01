@@ -1,0 +1,18 @@
+python dqn_v4.5.4.py 
+  --env-name "ALE/Pong-v5" 
+  --wandb-run-name "Fast-Balanced-DQN(4080)" 
+  --wandb-project "DLP-Lab5-Task3-Balanced-4.5.4-1" 
+  --batch-size 128 
+  --memory-size 400000 
+  --lr 0.00025 
+  --discount-factor 0.99 
+  --epsilon-start 0.25 
+  --epsilon-min 0.03 
+  --linear-decay-steps 200000 
+  --target-update-frequency 800 
+  --replay-start-size 20000 
+  --train-per-step 6 
+  --frame-skip 4 
+  --n-step 5 
+  --per-alpha 0.8 
+  --per-beta-start 0.5
