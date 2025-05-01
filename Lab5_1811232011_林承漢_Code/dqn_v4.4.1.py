@@ -493,6 +493,9 @@ class DQNAgent:
         ########## END OF YOUR CODE ##########
 
         # Convert the states, actions, rewards, next_states, and dones into torch tensors
+        states = np.array(states, dtype=np.float32)
+        next_states = np.array(next_states, dtype=np.float32)
+
         states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
         next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(self.device)
         if self.is_atari:

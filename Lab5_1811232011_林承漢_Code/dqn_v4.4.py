@@ -506,6 +506,8 @@ class DQNAgent:
         ########## END OF YOUR CODE ##########
 
         # Convert the states, actions, rewards, next_states, and dones into torch tensors
+        states = np.array(states, dtype=np.float32)
+        next_states = np.array(next_states, dtype=np.float32)
         try:
             states = torch.FloatTensor(states).to(self.device)
             next_states = torch.FloatTensor(next_states).to(self.device)
@@ -522,7 +524,8 @@ class DQNAgent:
         rewards = torch.FloatTensor(rewards).to(self.device)
         dones = torch.FloatTensor(dones).to(self.device)
         q_values = self.q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        weights = weights.to(self.device)
+        weights = torch.tensor(weights, dtype=torch.float32).to(self.device)
+
 
         
         ########## YOUR CODE HERE (~10 lines) ##########

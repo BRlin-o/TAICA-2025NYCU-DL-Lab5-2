@@ -14,6 +14,7 @@ try:
 except ImportError:
     from gymnasium.wrappers.atari_preprocessing import AtariPreprocessing as FrameSkip
 import cv2
+import math
 import ale_py
 from collections import deque
 import wandb
@@ -24,6 +25,30 @@ from utils import save_config, load_config
 
 gym.register_envs(ale_py)
 
+
+# --- Lightweight LazyFrames implementation for stacked Atari frames
+class LazyFrames:
+    """
+    A reduced‑memory wrapper for stacking Atari frames.
+
+    Instead of copying each 84×84 frame four times, we keep a list of
+    references and only create the stacked np.ndarray when __array__()
+    is called (e.g. right before feeding the network).
+    """
+    __slots__ = ("frames", "out")
+
+    def __init__(self, frames):
+        self.frames = frames        # list of np.uint8 H×W
+        self.out = None             # cached np.ndarray
+
+    def __array__(self, dtype=None):
+        if self.out is None:
+            # Stack along channel dimension: (C, H, W)
+            self.out = np.stack(self.frames, axis=0)
+        return self.out.astype(dtype) if dtype else self.out
+
+    def __len__(self):
+        return len(self.frames)
 
 def init_weights(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -87,18 +112,22 @@ class AtariPreprocessor:
         else:
             raise ValueError(f"Unexpected observation shape {obs.shape}")
         resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
-        normalized = resized / 255.0
-        return normalized
+        # normalized = resized / 255.0
+        # return normalized
+        # keep uint8 to minimise RAM – normalise right before the network
+        return resized.astype(np.uint8)
 
     def reset(self, obs):
         frame = self.preprocess(obs)
         self.frames = deque([frame for _ in range(self.frame_stack)], maxlen=self.frame_stack)
-        return np.stack(self.frames, axis=0)
+        # return np.stack(self.frames, axis=0)
+        return LazyFrames(list(self.frames))
 
     def step(self, obs):
         frame = self.preprocess(obs)
         self.frames.append(frame)
-        return np.stack(self.frames, axis=0)
+        # return np.stack(self.frames, axis=0)
+        return LazyFrames(list(self.frames))
 
 
 class PrioritizedReplayBuffer:
@@ -210,7 +239,9 @@ class DQNAgent:
     def select_action(self, state):
         if random.random() < self.epsilon:
             return random.randint(0, self.num_actions - 1)
-        state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0).to(self.device)
+        # state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0).to(self.device)
+        state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0) / 255.0
+        state_tensor = state_tensor.to(self.device)
         with torch.no_grad():
             q_values = self.q_net(state_tensor)
         return q_values.argmax().item()
@@ -321,7 +352,9 @@ class DQNAgent:
         total_reward = 0
 
         while not done:
-            state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0).to(self.device)
+            # state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0).to(self.device)
+            state_tensor = torch.from_numpy(np.array(state)).float().unsqueeze(0) / 255.0
+            state_tensor = state_tensor.to(self.device)
             with torch.no_grad():
                 action = self.q_net(state_tensor).argmax().item()
             next_obs, reward, terminated, truncated, _ = self.test_env.step(action)
@@ -359,6 +392,9 @@ class DQNAgent:
         actions = torch.LongTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
         dones = torch.FloatTensor(dones).to(self.device)
+        # Normalise image inputs right before the network
+        states      = states  / 255.0
+        next_states = next_states / 255.0
         q_values = self.q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
         
         ########## YOUR CODE HERE (~10 lines) ##########
@@ -415,7 +451,7 @@ class DQNAgent:
             "env_count": self.env_count,
             "train_count": self.train_count,
             "best_reward": self.best_reward,
-            "memory": list(self.memory),
+            # "memory": list(self.memory),
             "episode": self.episode,
             "wandb_id": self.wandb_id,
             "is_atari": self.is_atari,

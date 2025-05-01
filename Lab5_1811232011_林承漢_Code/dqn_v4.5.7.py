@@ -251,13 +251,16 @@ class PrioritizedReplayBuffer:
 # --- Iterable Dataset for DataLoader async sampling from PER ---
 class ReplayDataset(IterableDataset):
     """Iterable Dataset that continuously samples from the PER buffer."""
-    def __init__(self, memory, batch_size):
+    def __init__(self, memory, batch_size, min_buffer_size):
         super().__init__()
         self.memory = memory
         self.batch_size = batch_size
+        self.min_buffer_size = min_buffer_size
 
     def __iter__(self):
         while True:
+            while len(self.memory) < self.min_buffer_size:
+                time.sleep(0.1)
             yield self.memory.sample(self.batch_size)
 
         
@@ -312,7 +315,7 @@ class DQNAgent:
         )
         # Wrap PER buffer with DataLoader for async data transfer
         self.batch_size = args.batch_size
-        self.dataset = ReplayDataset(self.memory, self.batch_size)
+        self.dataset = ReplayDataset(self.memory, self.batch_size, args.replay_start_size)
         self.loader = DataLoader(self.dataset, batch_size=None, num_workers=4, pin_memory=True)
         self.loader_iter = iter(self.loader)
 

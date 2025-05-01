@@ -322,7 +322,10 @@ class DQNAgent:
         if torch.backends.mps.is_available():
             self.device = torch.device("mps")
         elif torch.cuda.is_available():
+            print(f"[device-info] CUDA設備名稱: {torch.cuda.get_device_name(0)}")
             self.device = torch.device("cuda")
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
         else:
             self.device = torch.device("cpu")
         print("Using device:", self.device)
@@ -558,7 +561,8 @@ class DQNAgent:
         ########## END OF YOUR CODE ##########
 
         # Convert the states, actions, rewards, next_states, and dones into torch tensors
-        states = torch.FloatTensor(np.array(states)).to(self.device)
+        states_list = [torch.as_tensor(s, device=self.device) for s in states]
+        states_tensor = torch.stack(states_list)
         next_states = torch.FloatTensor(np.array(next_states)).to(self.device)
         if self.is_atari:
             states = drq_shift(states)
@@ -603,6 +607,9 @@ class DQNAgent:
 
         # NOTE: Enable this part if "loss" is defined
         if self.train_count % 1000 == 0:
+            # 在train方法中添加檢測代碼
+            if torch.cuda.is_available():
+                print(f"GPU Memory: {torch.cuda.memory_allocated() / 1024**2:.2f} MB / {torch.cuda.memory_reserved() / 1024**2:.2f} MB")
             print(f"[Train #{self.train_count}] Loss: {loss.item():.4f}, Q mean: {q_values.mean().item():.3f}, std: {q_values.std().item():.3f}")
             wandb.log({
                 "train_step": self.train_count,
@@ -614,6 +621,7 @@ class DQNAgent:
                 "train/weights_mean": weights.mean().item(),
                 "train/beta": self.memory.beta
             })
+            
 
     def save_checkpoint(self, name="latest.pt", is_best=False, is_periodic=False):
         """
