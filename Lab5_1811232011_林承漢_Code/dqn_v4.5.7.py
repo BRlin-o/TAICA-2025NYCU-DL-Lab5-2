@@ -260,18 +260,6 @@ class ReplayDataset(IterableDataset):
         while True:
             yield self.memory.sample(self.batch_size)
 
-    def update_priorities(self, indices, errors):
-        """Update priorities of sampled transitions"""
-        self.priorities[indices] = (np.abs(errors) + self.epsilon) ** self.alpha
-    
-    def __iter__(self):
-        """Allow iterating over buffer contents"""
-        return iter(self.buffer)
-    
-    def __len__(self):
-        """Return current buffer size"""
-        return len(self.buffer)
-
         
 
 class DQNAgent:
