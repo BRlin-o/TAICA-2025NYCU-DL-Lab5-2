@@ -281,7 +281,7 @@ class DQNAgent:
         test_base_env = gym.make(env_name, render_mode="rgb_array", frameskip=1)
         self.test_env = FrameSkip(test_base_env, frame_skip=args.frame_skip)
         
-        self.num_actions = self.env.single_action_space.n
+        self.num_actions = self.env.action_space.n
 
         # 確定是否為 Atari 環境（例如 Pong）
         self.is_atari = env_name.startswith("ALE/")
@@ -295,7 +295,7 @@ class DQNAgent:
         else:
             # CartPole 環境使用向量輸入
             self.preprocessor = AtariPreprocessor()  # 保持一致性，但實際上不會用於預處理
-            self.input_shape = (self.env.single_observation_space.shape[0],)  # 例如 (4,) 對於 CartPole
+            self.input_shape = (self.env.observation_space.shape[0],)  # 例如 (4,) 對於 CartPole
 
         if torch.backends.mps.is_available():
             self.device = torch.device("mps")
