@@ -1,4 +1,4 @@
-python -m torch.utils.bottleneck dqn_v4.5.8.py \
+python -m torch.utils.bottleneck dqn_v4.5.8.py 
   --env-name "ALE/Pong-v5" 
   --wandb-run-name "Fast-Balanced-DQN-3090-1" 
   --wandb-project "DLP-Lab5-Task3-Balanced-4.5.8" 
