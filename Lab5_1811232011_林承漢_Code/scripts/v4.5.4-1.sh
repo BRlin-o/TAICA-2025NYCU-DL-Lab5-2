@@ -1,4 +1,4 @@
-python dqn_v4.5.2.py \
+python dqn_v4.5.4.py \
   --env-name "ALE/Pong-v5" \
   --wandb-run-name "Fast-Balanced-DQN" \
   --wandb-project "DLP-Lab5-Task3-Balanced-4.5.4-1" \
