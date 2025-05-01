@@ -22,10 +22,8 @@ import wandb
 import argparse
 from typing import Deque, Tuple
 
-# --- Additional imports for async DataLoader and vectorized env ---
 import torch.backends.cudnn
 from torch.utils.data import IterableDataset, DataLoader
-from gymnasium.vector import AsyncVectorEnv
 
 from utils import save_config, load_config
 
@@ -275,10 +273,9 @@ class ReplayDataset(IterableDataset):
 
 class DQNAgent:
     def __init__(self, env_name="ALE/Pong-v5", args=None):
-        # Create an asynchronous vectorized environment for parallel sampling
-        num_envs = getattr(args, "num_envs", 8)
-        env_fns = [lambda idx=i: FrameSkip(gym.make(env_name, render_mode="rgb_array", frameskip=1), frame_skip=args.frame_skip) for i in range(num_envs)]
-        self.env = AsyncVectorEnv(env_fns)
+        # Create a single environment (no AsyncVectorEnv)
+        base_env = gym.make(env_name, render_mode="rgb_array", frameskip=1)
+        self.env = FrameSkip(base_env, frame_skip=args.frame_skip)
 
         # self.test_env = gym.make(env_name, render_mode="rgb_array")
         test_base_env = gym.make(env_name, render_mode="rgb_array", frameskip=1)
