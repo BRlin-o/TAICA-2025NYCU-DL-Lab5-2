@@ -6,6 +6,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 import numpy as np
 import os, random, time
 import gymnasium as gym
@@ -289,7 +290,7 @@ class DQNAgent:
         self.q_net.apply(init_weights)
         self.target_net = DQN(self.num_actions, self.input_shape, use_cnn=self.is_atari).to(self.device)
         self.target_net.load_state_dict(self.q_net.state_dict())
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=args.lr)
+        self.optimizer = optim.RMSprop(self.q_net.parameters(), lr=args.lr, alpha=0.95, eps=0.01)
         self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=100000, gamma=0.5)
 
         # Prioritized replay buffer (Task‑3)
@@ -599,8 +600,9 @@ class DQNAgent:
         # Compute TD errors for updating priorities
         td_errors = target_q_values - q_values
         
-        # Compute weighted MSE loss
-        loss = (weights * td_errors.pow(2)).mean()
+        # Compute weighted Huber loss
+        loss_elements = F.smooth_l1_loss(q_values, target_q_values, reduction='none')
+        loss = (weights * loss_elements).mean()
         
         # Optimize the model
         self.optimizer.zero_grad()
@@ -611,9 +613,8 @@ class DQNAgent:
         # Update sample priorities in replay buffer
         self.memory.update_priorities(indices, td_errors.detach().cpu().numpy())
         
-        # Anneal beta parameter for importance sampling
-        self.memory.beta = min(1.0, self.memory.beta_start + 
-                        (1.0 - self.memory.beta_start) * self.env_count / 200000)
+        self.memory.beta = min(1.0, self.memory.beta_start +
+                (1.0 - self.memory.beta_start) * self.env_count / self.linear_decay_steps)
         
         # Periodically update the target network
         if self.train_count % self.target_update_frequency == 0:
