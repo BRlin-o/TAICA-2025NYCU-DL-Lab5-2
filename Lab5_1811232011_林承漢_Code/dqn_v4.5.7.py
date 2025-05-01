@@ -244,6 +244,9 @@ class PrioritizedReplayBuffer:
         weights = torch.tensor(weights, dtype=torch.float32)
         return states, actions, rewards, next_states, dones, indices, weights
 
+    def __len__(self):
+        return len(self.buffer)
+
 
 # --- Iterable Dataset for DataLoader async sampling from PER ---
 class ReplayDataset(IterableDataset):
